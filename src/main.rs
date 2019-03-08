@@ -11,11 +11,11 @@ fn main() {
 
     println!("{:?}", params);
 
-    let record;
-    match records::InputData::read_from_file("./res/OS_INP.DAT") {
-        Ok(t) => record = t,
-        Err(e) => panic!("{}", e)
-    }
-    println!("{:?}", record);
+//    let record;
+//    match records::InputData::read_from_file("./res/OS_INP.DAT") {
+//        Ok(t) => record = t,
+//        Err(e) => panic!("{}", e)
+//    }
+//    println!("{:?}", record);
 
 }
