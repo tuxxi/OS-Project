@@ -125,7 +125,7 @@ impl InputData {
     pub fn read_from_file(filename: &str) -> Result<InputData> {
         #[repr(C)]
         #[repr(packed)]
-        pub struct InputDataInternal {
+        struct InputDataInternal {
             process_priority: c_int,            /* User assigned priority        */
             process_memsize: c_int,             /* Load module memory requirement*/
             run_info: [[c_int; 3]; 10],         /* 10 groups of 3 integers:      */
