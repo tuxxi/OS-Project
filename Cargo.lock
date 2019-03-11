@@ -2,8 +2,14 @@
 name = "OS-Project"
 version = "0.1.0"
 dependencies = [
+ "cute 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "cute"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "libc"
@@ -11,4 +17,5 @@ version = "0.2.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [metadata]
+"checksum cute 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "45e700c2d1c3feea9b695e79b2dfeeb93040556a58c556fae23f71b1e6b449fd"
 "checksum libc 0.2.50 (registry+https://github.com/rust-lang/crates.io-index)" = "aab692d7759f5cd8c859e169db98ae5b52c924add2af5fbbca11d12fefb567c1"
