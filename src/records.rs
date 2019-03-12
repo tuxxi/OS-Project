@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::mem;
-use std::io::{Read, Result};
+use std::io::{Read, Result, SeekFrom, Seek};
 
 use libc::{c_int, c_char};
 
@@ -17,7 +17,7 @@ pub struct OSParams {
     disk_units: i32,                    /* Number of disk units avail.   */
     tape_units: i32,                    /* Number of tape units avail.   */
     cdrom_units: i32,                   /* Number of CDROM units avail.  */
-    every_n_units: bool,                /* If not zero, print #3 detail  */
+    every_n_units: i32,                 /* If not zero, print #3 detail  */
                                         /*   output every n units        */
 }
 /** Enums for OSParams */
@@ -68,7 +68,6 @@ impl OSParams {
 
         //internal model of c struct read from .DAT file
         #[repr(C)]
-        #[repr(packed)]
         struct OSParamsInternal {
             mem_model: c_int,
             mem_fix_blksize: c_int,
@@ -101,6 +100,7 @@ impl OSParams {
             disk_units: params.disk_units,
             tape_units: params.tape_units,
             cdrom_units: params.cdrom_units,
+            every_n_units: params.every_n_units,
             // match other values
             mem_model: match params.mem_model {
                 0 => MemModel::None,
@@ -113,41 +113,48 @@ impl OSParams {
                 "IPRI" => Algorithm::IPRI,
                 "MLFQ" => Algorithm::MLFQ,
                 _ => Algorithm::Unknown
-            },
-            every_n_units: match params.every_n_units {
-                0 => false,
-                _ => true
             }
         })
     }
 }
 impl InputData {
-    pub fn read_from_file(filename: &str) -> Result<InputData> {
+
+    pub fn read_from_file(filename: &str, num_entries: u32) -> Result<Vec<InputData>> {
+        let mut file = File::open(filename)?;
+        let mut data: Vec<InputData> = Vec::new();
+        for i in 1..num_entries + 1 {
+            data.push(InputData::read_one_entry(&mut file)?);
+            file.seek(SeekFrom::Start((i * 136) as u64))?;
+        }
+        Ok(data.into())
+    }
+    fn read_one_entry(file: &mut File) -> Result<InputData> {
+
         #[repr(C)]
-        #[repr(packed)]
         struct InputDataInternal {
             process_priority: c_int,            /* User assigned priority        */
             process_memsize: c_int,             /* Load module memory requirement*/
             run_info: [[c_int; 3]; 10],         /* 10 groups of 3 integers:      */
-            /*    0 = CPU units              */
-            /*    1 = I/O units              */
-            /*    2 = I/O device types:      */
-            /*        1 = DEV_DISK           */
-            /*        2 = DEV_TAPE           */
-            /*        3 = DEV_CD             */
-            /*  0 thru 9 is the 10 cycles    */
+                                                /*    0 = CPU units              */
+                                                /*    1 = I/O units              */
+                                                /*    2 = I/O device types:      */
+                                                /*        1 = DEV_DISK           */
+                                                /*        2 = DEV_TAPE           */
+                                                /*        3 = DEV_CD             */
+                                                /*  0 thru 9 is the 10 cycles    */
             process_name: [c_char; 8]           /* User name of process 7 chars  */
         }
-        let mut file = File::open(filename)?;
-        let mut data: [u8; 136] = [0; 136];
+        // the size of the C struct InputDataInternal in bytes _should_ be 136.
+        assert_eq!(136, mem::size_of::<InputDataInternal>());
 
+        let mut data:[u8; 136] = [0; 136];
         file.read_exact(&mut data)?;
         let inp: InputDataInternal = unsafe { mem::transmute(data) };
         Ok(InputData {
             process_priority: inp.process_priority,
             process_memsize: inp.process_memsize,
             process_name: convert_bytes(&inp.process_name),
-            // use cute array comprehension crate to build up RunInfo
+            // use cute array comprehension crate to build up RunInfo vec
             run_info: c![
                 RunInfo {
                     CPU_units: info[0],
@@ -158,7 +165,10 @@ impl InputData {
                     3 => IODeviceType::CD,
                     _ => IODeviceType::Unknown
                 }
-            }, for info in inp.run_info.iter()]
+            }, for info in inp.run_info.iter()
+                // filter run info array for only entries that exist: don't insert if all fields are empty
+                .filter(|info| !info.iter().all(|x| *x == 0))
+            ]
         })
     }
 }

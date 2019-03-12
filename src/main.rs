@@ -13,11 +13,13 @@ fn main() {
 
     println!("{:?}", params);
 
-    let record;
-    match records::InputData::read_from_file("./res/OS_INP.DAT") {
-        Ok(t) => record = t,
+    let all_records;
+    match records::InputData::read_from_file("./res/OS_INP.DAT", 10) {
+        Ok(t) => all_records = t,
         Err(e) => panic!("{}", e)
     }
-    println!("{:?}", record);
+    for r in all_records {
+        println!("{:?}", r);
+    }
 
 }
