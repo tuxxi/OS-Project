@@ -8,18 +8,18 @@ use cute::c;
 /** Program input params */
 #[derive(Debug, Clone)]
 pub struct OSParams {
-    mem_model: MemModel,
-    pro_algorithm: Algorithm,
-    mem_fix_blksize: i32,               /* F: Number of bytes per block  */
-    mem_fix_blksaveal: i32,             /* F: Number of available blocks */
-    mem_var_maxsize: i32,               /* V: Maximum block size         */
-    mem_var_totsize: i32,               /* V: Total available memory     */
-    pro_max_tasks: i32,                 /* Maximum Processes allowed     */
-    init_quantum: i32,                  /* Default quantum size          */
-    disk_units: i32,                    /* Number of disk units avail.   */
-    tape_units: i32,                    /* Number of tape units avail.   */
-    cdrom_units: i32,                   /* Number of CDROM units avail.  */
-    every_n_units: i32,                 /* If not zero, print #3 detail  */
+    pub mem_model: MemModel,
+    pub pro_algorithm: Algorithm,
+    pub mem_fix_blksize: i32,               /* F: Number of bytes per block  */
+    pub mem_fix_blksaveal: i32,             /* F: Number of available blocks */
+    pub mem_var_maxsize: i32,               /* V: Maximum block size         */
+    pub mem_var_totsize: i32,               /* V: Total available memory     */
+    pub pro_max_tasks: i32,                 /* Maximum Processes allowed     */
+    pub init_quantum: i32,                  /* Default quantum size          */
+    pub disk_units: i32,                    /* Number of disk units avail.   */
+    pub tape_units: i32,                    /* Number of tape units avail.   */
+    pub cdrom_units: i32,                   /* Number of CDROM units avail.  */
+    pub every_n_units: i32,                 /* If not zero, print #3 detail  */
                                         /*   output every n units        */
 }
 /** Enums for OSParams */

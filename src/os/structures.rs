@@ -22,3 +22,10 @@ pub enum Event {
     IO {time: i32, pid: i32},
     Timeout {time: i32, pid: i32},
 }
+
+impl ProcessControlBlock {
+    //TODO
+    pub fn allocate(&mut self) {
+
+    }
+}
