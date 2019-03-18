@@ -1,10 +1,12 @@
 use std::fs::File;
 use std::mem;
 use std::io::{Read, Result, SeekFrom, Seek};
-
 use libc::{c_int, c_char};
 
-#[derive(Debug)]
+use cute::c;
+
+/** Program input params */
+#[derive(Debug, Clone)]
 pub struct OSParams {
     mem_model: MemModel,
     pro_algorithm: Algorithm,
@@ -21,35 +23,36 @@ pub struct OSParams {
                                         /*   output every n units        */
 }
 /** Enums for OSParams */
-#[derive(Debug)]
-enum MemModel { None, Fixed, Variable, Unknown }
-#[derive(Debug)]
-enum Algorithm { FIFO, IPRI, MLFQ, Unknown }      /* FIFO : first-in, first-out    */
-                                        /* IPRI : initial priority       */
-                                        /* MLFQ : multi-level fb queue   */
+#[derive(Debug, Clone)]
+pub enum MemModel { None, Fixed, Variable, Unknown }
+#[derive(Debug, Clone)]
+pub enum Algorithm { FIFO, IPRI, MLFQ, Unknown }
+/* FIFO : first-in, first-out    */
+/* IPRI : initial priority       */
+/* MLFQ : multi-level fb queue   */
 
 /**
 Input info for a single process
 */
-#[derive(Debug)]
-pub struct InputData {
+#[derive(Debug, Clone)]
+pub struct ProcessData {
     process_priority: i32,              /* User assigned priority        */
     process_memsize: i32,               /* Load module memory requirement*/
-    run_info: Vec<RunInfo>,             /*  0 thru 9 is the 10 cycles    */
+    run_info: Vec<RunInfo>,             /* Cycles of process run info     */
     process_name: String                /* User name of process 7 chars  */
 
 }
 /**
 Info for each 'cycle' of the running process
 */
-#[derive(Debug)]
-struct RunInfo {
+#[derive(Debug, Clone)]
+pub struct RunInfo {
     CPU_units: i32,
     IO_units: i32,
     IO_device_type: IODeviceType
 }
-#[derive(Debug)]
-enum IODeviceType { Disk, Tape, CD, Unknown }
+#[derive(Debug, Clone)]
+pub enum IODeviceType { Disk, Tape, CD, Unknown }
 
 /** Utility function for converting 8 byte c_char arrays to str */
 fn convert_bytes(buf: &[c_char; 8]) -> String {
@@ -117,32 +120,25 @@ impl OSParams {
         })
     }
 }
-impl InputData {
+impl ProcessData {
 
-    pub fn read_from_file(filename: &str, num_entries: u32) -> Result<Vec<InputData>> {
+    pub fn read_from_file(filename: &str, num_entries: u32) -> Result<Vec<ProcessData>> {
         let mut file = File::open(filename)?;
-        let mut data: Vec<InputData> = Vec::new();
+        let mut data: Vec<ProcessData> = Vec::new();
         for i in 1..num_entries + 1 {
-            data.push(InputData::read_one_entry(&mut file)?);
+            data.push(ProcessData::read_one_entry(&mut file)?);
             file.seek(SeekFrom::Start((i * 136) as u64))?;
         }
-        Ok(data.into())
+        Ok(data)
     }
-    fn read_one_entry(file: &mut File) -> Result<InputData> {
+    fn read_one_entry(file: &mut File) -> Result<ProcessData> {
 
         #[repr(C)]
         struct InputDataInternal {
-            process_priority: c_int,            /* User assigned priority        */
-            process_memsize: c_int,             /* Load module memory requirement*/
-            run_info: [[c_int; 3]; 10],         /* 10 groups of 3 integers:      */
-                                                /*    0 = CPU units              */
-                                                /*    1 = I/O units              */
-                                                /*    2 = I/O device types:      */
-                                                /*        1 = DEV_DISK           */
-                                                /*        2 = DEV_TAPE           */
-                                                /*        3 = DEV_CD             */
-                                                /*  0 thru 9 is the 10 cycles    */
-            process_name: [c_char; 8]           /* User name of process 7 chars  */
+            process_priority: c_int,
+            process_memsize: c_int,
+            run_info: [[c_int; 3]; 10],
+            process_name: [c_char; 8]
         }
         // the size of the C struct InputDataInternal in bytes _should_ be 136.
         assert_eq!(136, mem::size_of::<InputDataInternal>());
@@ -150,7 +146,7 @@ impl InputData {
         let mut data:[u8; 136] = [0; 136];
         file.read_exact(&mut data)?;
         let inp: InputDataInternal = unsafe { mem::transmute(data) };
-        Ok(InputData {
+        Ok(ProcessData {
             process_priority: inp.process_priority,
             process_memsize: inp.process_memsize,
             process_name: convert_bytes(&inp.process_name),
@@ -166,7 +162,7 @@ impl InputData {
                     _ => IODeviceType::Unknown
                 }
             }, for info in inp.run_info.iter()
-                // filter run info array for only entries that exist: don't insert if all fields are empty
+                // filter run info for only entries that exist; don't insert if all fields are empty
                 .filter(|info| !info.iter().all(|x| *x == 0))
             ]
         })
