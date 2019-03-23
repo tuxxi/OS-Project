@@ -10,8 +10,8 @@ use cute::c;
 pub struct OSParams {
     pub mem_model: MemModel,
     pub pro_algorithm: Algorithm,
-    pub mem_fix_blksize: i32,               /* F: Number of bytes per block  */
-    pub mem_fix_blksaveal: i32,             /* F: Number of available blocks */
+    pub mem_fix_block_size: i32,               /* F: Number of bytes per block  */
+    pub mem_fix_total_blocks: i32,             /* F: Number of available blocks */
     pub mem_var_maxsize: i32,               /* V: Maximum block size         */
     pub mem_var_totsize: i32,               /* V: Total available memory     */
     pub pro_max_tasks: i32,                 /* Maximum Processes allowed     */
@@ -20,7 +20,7 @@ pub struct OSParams {
     pub tape_units: i32,                    /* Number of tape units avail.   */
     pub cdrom_units: i32,                   /* Number of CDROM units avail.  */
     pub every_n_units: i32,                 /* If not zero, print #3 detail  */
-                                        /*   output every n units        */
+                                            /*   output every n units        */
 }
 /** Enums for OSParams */
 #[derive(Debug, Clone)]
@@ -36,10 +36,10 @@ Input info for a single process
 */
 #[derive(Debug, Clone)]
 pub struct ProcessData {
-    process_priority: i32,              /* User assigned priority        */
-    process_memsize: i32,               /* Load module memory requirement*/
-    run_info: Vec<RunInfo>,             /* Cycles of process run info     */
-    process_name: String                /* User name of process 7 chars  */
+    pub process_priority: i32,              /* User assigned priority        */
+    pub process_memsize: i32,               /* Load module memory requirement*/
+    pub run_info: Vec<RunInfo>,             /* Cycles of process run info     */
+    pub process_name: String                /* User name of process 7 chars  */
 
 }
 /**
@@ -47,9 +47,9 @@ Info for each 'cycle' of the running process
 */
 #[derive(Debug, Clone)]
 pub struct RunInfo {
-    CPU_units: i32,
-    IO_units: i32,
-    IO_device_type: IODeviceType
+    pub CPU_units: i32,
+    pub IO_units: i32,
+    pub IO_device_type: IODeviceType
 }
 #[derive(Debug, Clone)]
 pub enum IODeviceType { Disk, Tape, CD, Unknown }
@@ -94,8 +94,8 @@ impl OSParams {
         // parse the c struct values into rust struct
         Ok(OSParams {
             // auto convert c_int -> i32
-            mem_fix_blksize: params.mem_fix_blksize,
-            mem_fix_blksaveal: params.mem_fix_blksaveal,
+            mem_fix_block_size: params.mem_fix_blksize,
+            mem_fix_total_blocks: params.mem_fix_blksaveal,
             mem_var_maxsize: params.mem_var_maxsize,
             mem_var_totsize: params.mem_var_totsize,
             pro_max_tasks: params.pro_max_tasks,

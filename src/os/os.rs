@@ -1,65 +1,65 @@
-use super::structures::{Event, ProcessControlBlock, State};
+use crate::os::structures::{ProcessControlBlock, State, MemoryRange, PID};
 use crate::records::{OSParams, ProcessData};
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap};
 
 //longest clock acceptable
-const CLOCK_LIMIT: u32 = 5000;
+const CLOCK_LIMIT: i32 = 5000;
+
+// version info
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+
 
 pub struct OS {
-    params: OSParams,
+    // input data
+    input_params: OSParams,
+    input_procs: Vec<ProcessData>,
+
     // running info
-    processes: Vec<ProcessControlBlock>,
-    state: OSState,
-    master_clock: u32,
-    current_pid: i32,
+    running_processes: HashMap<PID, ProcessControlBlock>,
+    master_clock: i32,
+    current_pid: PID,
+    memory_map: HashMap<PID, MemoryRange>,
+
     // queues
-    ready_queue: VecDeque<i32>,
-    blocked_queue: VecDeque<i32>,
+    ready_queue: VecDeque<PID>,
+    blocked_queue: VecDeque<PID>,
 }
-#[derive(Debug)]
-enum OSState {
-    Stopped,
-    Ready,
-    Running,
-    Completed,
-}
+
 impl OS {
     pub fn new(params: OSParams, processes: Vec<ProcessData>) -> OS {
+        let mem_cap = params.mem_fix_total_blocks as usize;
         OS {
-            params,
-            processes: processes
-                .iter()
-                .enumerate()
-                .map(|(idx, proc)| ProcessControlBlock {
-                    info: proc.clone(),
-                    id: idx as i32, // pid is just the index of process in our vector
-                    clk: 0,
-                    state: State::Allocating,
-                    total_cpu: 0,
-                    total_ios: 0,
-                    start_time: 0,
-                    end_time: 0,
-                })
-                .collect(),
-            state: OSState::Ready,
+            input_params: params,
+            input_procs: processes,
+            running_processes: HashMap::new(),
             master_clock: 0,
             current_pid: 0,
+            memory_map: HashMap::with_capacity(mem_cap),
             ready_queue: VecDeque::new(),
             blocked_queue: VecDeque::new(),
         }
     }
+    /** Start the OS Simulation */
     pub fn start(&mut self) {
-        self.state = OSState::Running;
-        println!("Started OS... OS is now {:?}", self.state);
+        println!("Started OS Simulation version {}.",
+                 VERSION.unwrap_or("(unknown)"));
+        //TODO: remove me
+        self.allocate();
         self.loop_clock();
     }
+
+    /** Starts the OS clock*/
     fn loop_clock(&mut self) {
-        let every_n: u32 = self.params.every_n_units as u32;
+        let every_n = self.input_params.every_n_units;
         loop {
-            // check if we should print
+            // TODO: allocate, etc etc
+
+            // check if we should print info for this cycle
             if self.master_clock % every_n == 0 {
                 self.print_info();
             }
+
+            // increment the master clock
             self.master_clock += 1;
 
             //check if we exceeded the clock limit
@@ -69,15 +69,36 @@ impl OS {
             }
         }
     }
-    //TODO
-    /** Allocate a process to the ready queue */
-    fn allocate(&mut self) {
-        //println!("Allocating {} at time {} (PID #{})")
+
+    /** Checks if memory is available for a given process */
+    fn check_memory(&mut self, pcb: &ProcessControlBlock) {
+
     }
-    //TODO
+
+    /** Allocates processes to memory */
+    fn allocate(&mut self) {
+        // TODO: check memory and allocate different process other than just first one.
+        let info = &self.input_procs[0];
+        let pid = (self.running_processes.len() + 1) as i32;
+        let memory_max = info.process_memsize / (self.input_params.mem_fix_block_size / 1000);
+        self.running_processes.insert(pid, ProcessControlBlock {
+            info: info.clone(),     //grr borrow checker :^(
+            pid,
+            clk: self.master_clock,
+            state: State::Allocating,
+            total_cpu: 0,
+            total_ios: 0,
+            start_time: self.master_clock,
+            end_time: -1,
+            memory_map: MemoryRange(0, memory_max)
+        });
+    }
+
     /** Print running process info */
     fn print_info(&self) {
-        println!("System Clock: {}", self.master_clock);
-        println!("Process Info:");
+        println!("==================================={}===================================", self.master_clock);
+        for (_, process) in self.running_processes.iter() {
+            println!("{}", process);
+        }
     }
 }
