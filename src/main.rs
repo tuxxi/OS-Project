@@ -16,15 +16,15 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
-mod records;
 mod os;
+mod records;
 
-use records::{ProcessData, OSParams};
 use os::os::OS;
+use records::{OSParams, ProcessData};
 
 fn main() {
     let params = open_params();
-    let all_records= open_records();
+    let all_records = open_records();
 
     let mut os = OS::new(params, all_records);
     os.start();
@@ -33,12 +33,12 @@ fn main() {
 fn open_params() -> OSParams {
     match OSParams::read_from_file("./res/OS_OSP.DAT") {
         Ok(t) => t,
-        Err(e) => panic!("{}", e)
+        Err(e) => panic!("{}", e),
     }
 }
 fn open_records() -> Vec<ProcessData> {
     match ProcessData::read_from_file("./res/OS_INP.DAT", 10) {
         Ok(t) => t,
-        Err(e) => panic!("{}", e)
+        Err(e) => panic!("{}", e),
     }
 }

@@ -1,13 +1,12 @@
-use crate::os::structures::{ProcessControlBlock, State, MemoryRange, PID};
+use crate::os::structures::{MemoryRange, ProcessControlBlock, State, PID};
 use crate::records::{OSParams, ProcessData};
-use std::collections::{VecDeque, HashMap};
+use std::collections::{HashMap, VecDeque};
 
 //longest clock acceptable
 const CLOCK_LIMIT: i32 = 5000;
 
 // version info
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-
 
 pub struct OS {
     // input data
@@ -41,8 +40,10 @@ impl OS {
     }
     /** Start the OS Simulation */
     pub fn start(&mut self) {
-        println!("Started OS Simulation version {}.",
-                 VERSION.unwrap_or("(unknown)"));
+        println!(
+            "Started OS Simulation version {}.",
+            VERSION.unwrap_or("(unknown)")
+        );
         //TODO: remove me
         self.allocate();
         self.loop_clock();
@@ -64,16 +65,17 @@ impl OS {
 
             //check if we exceeded the clock limit
             if self.master_clock > CLOCK_LIMIT {
-                eprintln!("Error! Likely runaway OS: clock exceeded {} cycles!", CLOCK_LIMIT);
+                eprintln!(
+                    "Error! Likely runaway OS: clock exceeded {} cycles!",
+                    CLOCK_LIMIT
+                );
                 break;
             }
         }
     }
 
     /** Checks if memory is available for a given process */
-    fn check_memory(&mut self, pcb: &ProcessControlBlock) {
-
-    }
+    fn check_memory(&mut self, pcb: &ProcessControlBlock) {}
 
     /** Allocates processes to memory */
     fn allocate(&mut self) {
@@ -81,22 +83,28 @@ impl OS {
         let info = &self.input_procs[0];
         let pid = (self.running_processes.len() + 1) as i32;
         let memory_max = info.process_memsize / (self.input_params.mem_fix_block_size / 1000);
-        self.running_processes.insert(pid, ProcessControlBlock {
-            info: info.clone(),     //grr borrow checker :^(
+        self.running_processes.insert(
             pid,
-            clk: self.master_clock,
-            state: State::Allocating,
-            total_cpu: 0,
-            total_ios: 0,
-            start_time: self.master_clock,
-            end_time: -1,
-            memory_map: MemoryRange(0, memory_max)
-        });
+            ProcessControlBlock {
+                info: info.clone(), //grr borrow checker :^(
+                pid,
+                clk: self.master_clock,
+                state: State::Allocating,
+                total_cpu: 0,
+                total_ios: 0,
+                start_time: self.master_clock,
+                end_time: -1,
+                memory_map: MemoryRange(0, memory_max),
+            },
+        );
     }
 
     /** Print running process info */
     fn print_info(&self) {
-        println!("==================================={}===================================", self.master_clock);
+        println!(
+            "==================================={}===================================",
+            self.master_clock
+        );
         for (_, process) in self.running_processes.iter() {
             println!("{}", process);
         }
