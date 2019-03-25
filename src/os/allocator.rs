@@ -63,7 +63,7 @@ impl Allocator {
             TooBig => return TooBig,
         };
 
-        let pid = (os.running_processes.len() + 1) as i32;
+        let pid = os.input_size - os.input_queue.len() as i32;
 
         // add process to memory map
         os.memory_map.insert(pid, memory_range.clone());

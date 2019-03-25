@@ -17,17 +17,17 @@ pub struct OS {
     pub input_params: OSParams,
     pub input_procs: Vec<ProcessData>,
     pub input_queue: VecDeque<ProcessData>,
+    pub input_size: i32,
 
     // running info
     pub running_processes: HashMap<PID, ProcessControlBlock>,
-    pub fifo_schedule: VecDeque<PID>,
     pub master_clock: i32,
     pub current_pid: PID,
     pub memory_map: HashMap<PID, MemoryRange>,
 
     // queues
-    pub ready_queue: VecDeque<PID>,
     pub blocked_queue: VecDeque<PID>,
+    pub fifo_schedule: VecDeque<PID>,
 }
 
 impl OS {
@@ -38,15 +38,15 @@ impl OS {
             input_params: params,
             input_procs: processes,
             input_queue: VecDeque::with_capacity(num_procs),
+            input_size: num_procs as i32,
 
             running_processes: HashMap::with_capacity(num_procs),
-            fifo_schedule: VecDeque::with_capacity(num_procs),
             master_clock: 0,
             current_pid: 0,
             memory_map: HashMap::with_capacity(mem_cap),
 
-            ready_queue: VecDeque::with_capacity(num_procs),
             blocked_queue: VecDeque::with_capacity(num_procs),
+            fifo_schedule: VecDeque::with_capacity(num_procs),
         }
     }
 
@@ -61,6 +61,29 @@ impl OS {
         }
 
         self.loop_clock();
+    }
+
+    /** Remove a process from the OS */
+    pub fn remove_process(&mut self, pid: PID) {
+        // remove from blocked queue
+        for (idx, item) in self.blocked_queue.iter_mut().enumerate() {
+            if *item == pid {
+                self.blocked_queue.remove(idx);
+                break
+            }
+        }
+        // remove from ready queue
+        for (idx, item) in self.fifo_schedule.iter_mut().enumerate() {
+            if *item == pid {
+                self.fifo_schedule.remove(idx);
+                break
+            }
+        }
+        // remove from memory map
+        self.memory_map.remove(&pid);
+        // remove from running processes table
+        self.running_processes.remove(&pid);
+
     }
 
     /** Starts the OS clock*/
@@ -89,6 +112,12 @@ impl OS {
             // check if we should print info for this cycle
             if self.master_clock % every_n == 0 {
                 self.print_info();
+            }
+
+            // check if simulation is finished
+            if self.running_processes.is_empty() && self.input_queue.is_empty() {
+                println!("OS simulation finished at clock time {}.", self.master_clock);
+                break
             }
         }
     }
