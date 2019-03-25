@@ -66,7 +66,9 @@ impl Dispatcher {
                 self.update_cpu_ios(proc, &info);
 
                 // dirty, ugly hack because I can't figure out how the borrow checker works.
-                if info.IO_device_type != (IODeviceType::Unknown) && !os.blocked_queue.contains(&proc.pid) {
+                if info.IO_device_type != (IODeviceType::Unknown)
+                    && !os.blocked_queue.contains(&proc.pid)
+                {
                     os.blocked_queue.push_back(proc.pid);
                 }
             } else {
@@ -102,10 +104,12 @@ impl Dispatcher {
             proc.total_ios += 1;
         }
         // update process total CPU time
-        if self.cycles_to_go > 0 { // info block has more cycles to go
+        if self.cycles_to_go > 0 {
+            // info block has more cycles to go
             proc.total_cpu += 1;
             self.cycles_to_go -= 1;
-        } else { // done executing this info block
+        } else {
+            // done executing this info block
             self.current_process = None;
             self.current_info = None;
             proc.state = State::Ready;

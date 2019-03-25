@@ -69,21 +69,20 @@ impl OS {
         for (idx, item) in self.blocked_queue.iter_mut().enumerate() {
             if *item == pid {
                 self.blocked_queue.remove(idx);
-                break
+                break;
             }
         }
         // remove from ready queue
         for (idx, item) in self.fifo_schedule.iter_mut().enumerate() {
             if *item == pid {
                 self.fifo_schedule.remove(idx);
-                break
+                break;
             }
         }
         // remove from memory map
         self.memory_map.remove(&pid);
         // remove from running processes table
         self.running_processes.remove(&pid);
-
     }
 
     /** Starts the OS clock*/
@@ -116,8 +115,11 @@ impl OS {
 
             // check if simulation is finished
             if self.running_processes.is_empty() && self.input_queue.is_empty() {
-                println!("OS simulation finished at clock time {}.", self.master_clock);
-                break
+                println!(
+                    "OS simulation finished at clock time {}.",
+                    self.master_clock
+                );
+                break;
             }
         }
     }
