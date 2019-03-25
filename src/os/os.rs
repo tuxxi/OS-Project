@@ -1,17 +1,16 @@
-use crate::os::structures::{MemoryRange, ProcessControlBlock, PID};
-use crate::records::{OSParams, ProcessData};
 use crate::os::allocator::Allocator;
 use crate::os::dispatcher::Dispatcher;
+use crate::os::structures::{MemoryRange, ProcessControlBlock, PID};
+use crate::records::{OSParams, ProcessData};
 
-use std::collections::{HashMap, VecDeque};
 use itertools::sorted;
+use std::collections::{HashMap, VecDeque};
 
 //longest clock acceptable
 const CLOCK_LIMIT: i32 = 3000;
 
 // version info
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-
 
 pub struct OS {
     // input data
@@ -21,6 +20,7 @@ pub struct OS {
 
     // running info
     pub running_processes: HashMap<PID, ProcessControlBlock>,
+    pub fifo_schedule: VecDeque<PID>,
     pub master_clock: i32,
     pub current_pid: PID,
     pub memory_map: HashMap<PID, MemoryRange>,
@@ -33,18 +33,20 @@ pub struct OS {
 impl OS {
     pub fn new(params: OSParams, processes: Vec<ProcessData>) -> Self {
         let mem_cap = params.mem_fix_total_blocks as usize;
-        OS {
+        let num_procs = processes.len();
+        Self {
             input_params: params,
             input_procs: processes,
-            input_queue: VecDeque::new(),
+            input_queue: VecDeque::with_capacity(num_procs),
 
-            running_processes: HashMap::new(),
+            running_processes: HashMap::with_capacity(num_procs),
+            fifo_schedule: VecDeque::with_capacity(num_procs),
             master_clock: 0,
             current_pid: 0,
             memory_map: HashMap::with_capacity(mem_cap),
 
-            ready_queue: VecDeque::new(),
-            blocked_queue: VecDeque::new(),
+            ready_queue: VecDeque::with_capacity(num_procs),
+            blocked_queue: VecDeque::with_capacity(num_procs),
         }
     }
 
@@ -64,7 +66,11 @@ impl OS {
     /** Starts the OS clock*/
     fn loop_clock(&mut self) {
         let every_n = self.input_params.every_n_units;
+        let mut dispatcher = Dispatcher::new();
         loop {
+            // increment the master clock
+            self.master_clock += 1;
+
             //check if we exceeded the clock limit
             if self.master_clock > CLOCK_LIMIT {
                 eprintln!(
@@ -73,18 +79,17 @@ impl OS {
                 );
                 break;
             }
-            // allocate processes
-            Allocator::allocate( self);
+            // allocate processes, if we allocated, this uses up a clock cycle so we
+            if Allocator::allocate(self) {
+                continue;
+            }
             // dispatch IO and CPU resources to running processes
-            Dispatcher::dispatch(self);
+            dispatcher.dispatch(self);
 
             // check if we should print info for this cycle
             if self.master_clock % every_n == 0 {
                 self.print_info();
             }
-
-            // increment the master clock
-            self.master_clock += 1;
         }
     }
 

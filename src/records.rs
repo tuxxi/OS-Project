@@ -60,7 +60,7 @@ pub struct RunInfo {
     pub IO_units: i32,
     pub IO_device_type: IODeviceType,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum IODeviceType {
     Disk,
     Tape,

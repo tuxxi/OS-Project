@@ -1,6 +1,6 @@
 use crate::records::ProcessData;
-use std::fmt;
 use std::cmp::Ordering;
+use std::fmt;
 
 pub type PID = i32;
 
@@ -15,11 +15,6 @@ pub struct ProcessControlBlock {
     pub start_time: i32,
     pub end_time: i32,
     pub memory_map: MemoryRange, // where in memory this process is located
-}
-
-impl ProcessControlBlock {
-    /** Allocate this process to memory */
-    pub fn allocate(&mut self) {}
 }
 
 impl Ord for ProcessControlBlock {
@@ -63,7 +58,7 @@ impl fmt::Display for MemoryRange {
         write!(f, "{}", result)
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum State {
     Allocating,
     Ready,
