@@ -31,6 +31,7 @@ impl fmt::Display for ProcessControlBlock {
     }
 }
 
+#[derive(Clone)]
 pub struct MemoryRange(pub i32, pub i32); // initial and final blocks of memory this process takes up
 
 impl fmt::Display for MemoryRange {
