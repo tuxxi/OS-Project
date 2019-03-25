@@ -1,5 +1,6 @@
 use crate::records::ProcessData;
 use std::fmt;
+use std::cmp::Ordering;
 
 pub type PID = i32;
 
@@ -19,6 +20,25 @@ pub struct ProcessControlBlock {
 impl ProcessControlBlock {
     /** Allocate this process to memory */
     pub fn allocate(&mut self) {}
+}
+
+impl Ord for ProcessControlBlock {
+    fn cmp(&self, other: &ProcessControlBlock) -> Ordering {
+        self.pid.cmp(&other.pid)
+    }
+}
+
+impl PartialOrd for ProcessControlBlock {
+    fn partial_cmp(&self, other: &ProcessControlBlock) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Eq for ProcessControlBlock {}
+
+impl PartialEq for ProcessControlBlock {
+    fn eq(&self, other: &ProcessControlBlock) -> bool {
+        self.pid == other.pid
+    }
 }
 
 impl fmt::Display for ProcessControlBlock {

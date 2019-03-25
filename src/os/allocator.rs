@@ -1,6 +1,7 @@
 use crate::os::os::OS;
 use crate::os::structures::{MemoryRange, State, ProcessControlBlock};
 use crate::records::ProcessData;
+use self::AllocResult::*;
 
 use std::collections::HashSet;
 
@@ -21,7 +22,7 @@ impl Allocator {
                 // try to allocate, and check result of allocation
                 match Self::alloc_one(os, &info) {
                     // everything was ok, process allocated
-                    AllocResult::Allocated(_) => {
+                    Allocated(_) => {
                         println!(
                             "Allocated {} at clock time {}",
                             info.process_name,
@@ -29,7 +30,7 @@ impl Allocator {
                     },
 
                     // process too big. don't re add to queue
-                    AllocResult::TooBig => {
+                    TooBig => {
                         println!(
                             "Flushed {} from input queue: Not enough memory!",
                             info.process_name);
@@ -37,7 +38,7 @@ impl Allocator {
                     },
 
                     // no space this time, try to add next clock cycle.
-                    AllocResult::NoSpace => {
+                    NoSpace => {
                         os.input_queue.push_back(info);
                         break;
                     },
@@ -51,9 +52,9 @@ impl Allocator {
         true if allocation succeeded. */
     fn alloc_one(os: &mut OS, info: &ProcessData) -> AllocResult {
         let memory_range = match Self::check_memory(os, info) {
-            AllocResult::Allocated(T) => T,
-            AllocResult::NoSpace => return AllocResult::NoSpace,
-            AllocResult::TooBig => return AllocResult::TooBig,
+            Allocated(T) => T,
+            NoSpace => return NoSpace,
+            TooBig => return TooBig,
         };
 
         let pid = (os.running_processes.len() + 1) as i32;
@@ -73,7 +74,7 @@ impl Allocator {
                 memory_map: memory_range.clone(),
             },
         );
-        AllocResult::Allocated(memory_range)
+        Allocated(memory_range)
     }
 
     /** Checks if memory is available for a given process, and returns the available memory range if it is */
@@ -84,11 +85,11 @@ impl Allocator {
 
         // check if this process will even fit in our total memory
         if proc_mem_size > os_mem_max {
-            return AllocResult::TooBig
+            return TooBig
         }
         // if nothing is already in memory, we get the first available bytes
         if os.memory_map.is_empty() {
-            return AllocResult::Allocated(MemoryRange(1, proc_mem_size))
+            return Allocated(MemoryRange(1, proc_mem_size))
         }
 
         // otherwise, check each process's memory range to see if we can fit somewhere
@@ -105,14 +106,14 @@ impl Allocator {
         let mut prev = 0;
         for block in 0..=os_mem_max {
             if block - prev >= proc_mem_size {  // we found room for our new process!
-                return AllocResult::Allocated(MemoryRange(block - proc_mem_size + 1, block))
+                return Allocated(MemoryRange(block - proc_mem_size + 1, block))
             }
             if allocated_blocks.contains(&block) {
                 prev = block;
             }
         }
         // didn't find any room
-        AllocResult::NoSpace
+        NoSpace
     }
 
 }

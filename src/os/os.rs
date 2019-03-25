@@ -1,8 +1,10 @@
 use crate::os::structures::{MemoryRange, ProcessControlBlock, PID};
 use crate::records::{OSParams, ProcessData};
 use crate::os::allocator::Allocator;
+use crate::os::dispatcher::Dispatcher;
 
 use std::collections::{HashMap, VecDeque};
+use itertools::sorted;
 
 //longest clock acceptable
 const CLOCK_LIMIT: i32 = 3000;
@@ -45,6 +47,7 @@ impl OS {
             blocked_queue: VecDeque::new(),
         }
     }
+
     /** Start the OS Simulation */
     pub fn start(&mut self) {
         println!(
@@ -73,7 +76,7 @@ impl OS {
             // allocate processes
             Allocator::allocate( self);
             // dispatch IO and CPU resources to running processes
-            self.dispatch();
+            Dispatcher::dispatch(self);
 
             // check if we should print info for this cycle
             if self.master_clock % every_n == 0 {
@@ -85,17 +88,13 @@ impl OS {
         }
     }
 
-    fn dispatch(&mut self) {
-
-    }
-
     /** Print running process info */
     fn print_info(&self) {
         println!(
             "==================================={}===================================",
             self.master_clock,
         );
-        for process in self.running_processes.values() {
+        for process in sorted(self.running_processes.values()) {
             println!("{}", process);
         }
         println!(

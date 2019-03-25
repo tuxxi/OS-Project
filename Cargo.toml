@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 libc = "^0.2.50"
 cute = "^0.3.0"
+itertools = "^0.8.0"
