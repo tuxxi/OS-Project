@@ -67,12 +67,3 @@ pub enum State {
     Done,
     Held,
 }
-
-/** An OS event -- either IO completion or timeout.
-    .time: time at event creation
-    .pid: pid of process that created event
-*/
-pub enum Event {
-    IO { time: i32, pid: i32 },
-    Timeout { time: i32, pid: i32 },
-}

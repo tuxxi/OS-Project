@@ -1,12 +1,29 @@
 use crate::os::os::OS;
 use crate::os::structures::{ProcessControlBlock, State, PID};
-use crate::records::{IODeviceType, RunInfo};
-use std::collections::HashMap;
+use crate::records::IODeviceType;
+use std::collections::{HashMap, VecDeque};
+
+/** A dispatcher event -- IO completion, timeout, start or finish
+    .time: time at event creation
+    .pid: pid of process that created event
+*/
+struct Event {
+    pub _type: EventType,
+    pub time: i32,
+    pub pid: PID,
+}
+enum EventType {
+    IO,       // IO completion
+    Timeout,  // CPU quantum completion
+    Started,  // process started
+    Finished, // process finished
+}
 
 pub struct Dispatcher {
     cpus_to_go: HashMap<PID, i32>,
-    ios_to_go: HashMap<PID, i32>,
+    ios_to_go: HashMap<PID, (IODeviceType, i32)>,
     current_process: Option<PID>,
+    event_queue: VecDeque<Event>,
 }
 
 impl Dispatcher {
@@ -15,6 +32,7 @@ impl Dispatcher {
             cpus_to_go: HashMap::new(),
             ios_to_go: HashMap::new(),
             current_process: None,
+            event_queue: VecDeque::new(),
         }
     }
     pub fn dispatch(&mut self, os: &mut OS) {
@@ -32,26 +50,30 @@ impl Dispatcher {
         }
         // update IOs for all blocked processes
         self.update_ios(os);
+
+        // process event queue
+        self.process_events(os);
     }
 
     /** Execute a process */
     fn exec(&mut self, os: &mut OS, pid: PID) {
         if let Some(proc) = os.running_processes.get_mut(&pid) {
+            let clock = os.master_clock;
+
             // start the process, if we haven't already started
             if proc.start_time == 0 {
-                let clock = os.master_clock;
-                proc.start_time = clock;
-                println!(
-                    "Started {} (PID # {}) at clock time {}",
-                    proc.info.process_name, pid, clock
-                );
+                self.event_queue.push_back(Event {
+                    _type: EventType::Started,
+                    time: clock,
+                    pid: clock,
+                });
             }
 
             // check if the dispatcher was previously executing a process, and use that CPU info
             match self.cpus_to_go.get(&pid) {
                 Some(_) => {
                     if !os.blocked_queue.contains(&pid) {
-                        self.update_cpu(proc);
+                        self.update_cpu(proc, clock);
                     }
                 }
                 None => {
@@ -63,22 +85,17 @@ impl Dispatcher {
 
                         // update IO cycles to go
                         if info.IO_units > 0 {
-                            println!(
-                                "Started IO for process {} (PID # {}) at clock time {}",
-                                proc.info.process_name, pid, os.master_clock
-                            );
-                            self.ios_to_go.insert(pid, info.IO_units);
+                            self.ios_to_go
+                                .insert(pid, (info.IO_device_type, info.IO_units));
                         }
-                        self.update_cpu(proc);
+                        self.update_cpu(proc, clock);
                     } else {
                         // info is empty, process must have been completed!
-                        proc.state = State::Done;
-                        println!(
-                            "Finished process {} (PID # {}) at clock time {}",
-                            proc.info.process_name, pid, os.master_clock
-                        );
-                        self.current_process = None;
-                        os.remove_process(pid);
+                        self.event_queue.push_back(Event {
+                            _type: EventType::Finished,
+                            time: os.master_clock,
+                            pid,
+                        });
                     }
                 }
             }
@@ -87,8 +104,6 @@ impl Dispatcher {
 
     /** update IO cycles completed */
     fn update_ios(&mut self, os: &mut OS) {
-        // create list of PIDS we must remove
-        let mut to_remove: Vec<PID> = Vec::new();
         for (pid, togo) in self.ios_to_go.iter_mut() {
             let proc = os.running_processes.get_mut(pid).unwrap();
             proc.state = State::Blocked;
@@ -96,27 +111,21 @@ impl Dispatcher {
                 os.blocked_queue.push_back(proc.pid);
             }
 
-            if *togo > 0 {
+            if togo.1 > 0 {
                 proc.total_ios += 1;
-                *togo -= 1;
+                togo.1 -= 1;
             } else {
-                println!(
-                    "IO completed for process {} (PID {}) at clock time {}",
-                    proc.info.process_name, proc.pid, os.master_clock
-                );
-                os.blocked_queue.pop_front();
-                to_remove.push(proc.pid);
+                self.event_queue.push_back(Event {
+                    _type: EventType::IO,
+                    time: os.master_clock,
+                    pid: *pid,
+                });
             }
-        }
-
-        // removed mrked IOs
-        for pid in to_remove {
-            self.ios_to_go.remove(&pid);
         }
     }
 
     /** Update CPU cycles completed */
-    fn update_cpu(&mut self, proc: &mut ProcessControlBlock) {
+    fn update_cpu(&mut self, proc: &mut ProcessControlBlock, clock: i32) {
         let togo = self.cpus_to_go.get_mut(&proc.pid).unwrap();
         // update total CPU time for the currently running process
         if *togo > 0 {
@@ -126,9 +135,11 @@ impl Dispatcher {
             *togo -= 1;
         } else {
             // done executing CPU for this info block
-            self.current_process = None;
-            self.cpus_to_go.remove(&proc.pid);
-            proc.state = State::Ready;
+            self.event_queue.push_back(Event {
+                _type: EventType::Timeout,
+                time: clock,
+                pid: proc.pid,
+            })
         }
     }
 
@@ -142,5 +153,48 @@ impl Dispatcher {
             fifo.push_back(T);
             Some(T)
         })
+    }
+
+    fn process_events(&mut self, os: &mut OS) {
+        // process all events in the queue with drain(..)
+        for event in self.event_queue.drain(..) {
+            if let Some(proc) = os.running_processes.get_mut(&event.pid) {
+                match event._type {
+                    EventType::IO => {
+                        println!(
+                            "IO for process {} (PID {}) completed at clock time {}",
+                            proc.info.process_name, event.pid, event.time
+                        );
+                        self.ios_to_go.remove(&event.pid);
+                        os.blocked_queue.pop_front();
+                    }
+                    EventType::Timeout => {
+                        println!(
+                            "Process {} (PID # {}) timed out at clock time {}",
+                            proc.info.process_name, event.pid, event.time
+                        );
+                        self.current_process = None;
+                        self.cpus_to_go.remove(&event.pid);
+                        proc.state = State::Ready;
+                    }
+                    EventType::Finished => {
+                        println!(
+                            "Process {} (PID # {}) completed at clock time {}",
+                            proc.info.process_name, event.pid, event.time
+                        );
+                        proc.state = State::Done;
+                        self.current_process = None;
+                        os.remove_process(event.pid);
+                    }
+                    EventType::Started => {
+                        println!(
+                            "Process {} (PID # {}) started at clock time {}",
+                            proc.info.process_name, event.pid, event.time
+                        );
+                        proc.start_time = event.time;
+                    }
+                }
+            }
+        }
     }
 }
