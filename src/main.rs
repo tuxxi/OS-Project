@@ -26,7 +26,7 @@ fn main() {
     let params = open_params();
     let all_records = open_records();
 
-    let mut os = OS::new(params, all_records);
+    let mut os = OS::new(params, all_records, 5000);
     os.start();
 }
 

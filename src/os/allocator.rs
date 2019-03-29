@@ -68,7 +68,7 @@ impl Allocator {
         // add process to memory map
         os.memory_map.insert(pid, memory_range.clone());
         // add pid to FIFO scheduling queue
-        os.fifo_schedule.push_back(pid);
+        os.ready_queue.push_back(pid);
         // add
         os.running_processes.insert(
             pid,

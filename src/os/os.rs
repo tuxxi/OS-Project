@@ -6,9 +6,6 @@ use crate::records::{OSParams, ProcessData};
 use itertools::sorted;
 use std::collections::{HashMap, VecDeque};
 
-//longest clock acceptable
-const CLOCK_LIMIT: i32 = 3000;
-
 // version info
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
@@ -18,6 +15,7 @@ pub struct OS {
     pub input_procs: Vec<ProcessData>,
     pub input_queue: VecDeque<ProcessData>,
     pub input_size: i32,
+    clock_limit: i32,
 
     // running info
     pub running_processes: HashMap<PID, ProcessControlBlock>,
@@ -27,11 +25,11 @@ pub struct OS {
 
     // queues
     pub blocked_queue: VecDeque<PID>,
-    pub fifo_schedule: VecDeque<PID>,
+    pub ready_queue: VecDeque<PID>,
 }
 
 impl OS {
-    pub fn new(params: OSParams, processes: Vec<ProcessData>) -> Self {
+    pub fn new(params: OSParams, processes: Vec<ProcessData>, clock_limit: i32) -> Self {
         let mem_cap = params.mem_fix_total_blocks as usize;
         let num_procs = processes.len();
         Self {
@@ -39,6 +37,7 @@ impl OS {
             input_procs: processes,
             input_queue: VecDeque::with_capacity(num_procs),
             input_size: num_procs as i32,
+            clock_limit,
 
             running_processes: HashMap::with_capacity(num_procs),
             master_clock: 0,
@@ -46,7 +45,7 @@ impl OS {
             memory_map: HashMap::with_capacity(mem_cap),
 
             blocked_queue: VecDeque::with_capacity(num_procs),
-            fifo_schedule: VecDeque::with_capacity(num_procs),
+            ready_queue: VecDeque::with_capacity(num_procs),
         }
     }
 
@@ -73,9 +72,9 @@ impl OS {
             }
         }
         // remove from ready queue
-        for (idx, item) in self.fifo_schedule.iter_mut().enumerate() {
+        for (idx, item) in self.ready_queue.iter_mut().enumerate() {
             if *item == pid {
-                self.fifo_schedule.remove(idx);
+                self.ready_queue.remove(idx);
                 break;
             }
         }
@@ -94,10 +93,10 @@ impl OS {
             self.master_clock += 1;
 
             //check if we exceeded the clock limit
-            if self.master_clock > CLOCK_LIMIT {
+            if self.master_clock > self.clock_limit {
                 eprintln!(
                     "Error! Likely runaway OS: clock exceeded {} cycles!",
-                    CLOCK_LIMIT
+                    self.clock_limit
                 );
                 break;
             }

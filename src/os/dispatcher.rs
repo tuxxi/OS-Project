@@ -1,131 +1,146 @@
 use crate::os::os::OS;
 use crate::os::structures::{ProcessControlBlock, State, PID};
 use crate::records::{IODeviceType, RunInfo};
+use std::collections::HashMap;
 
 pub struct Dispatcher {
-    cycles_to_go: i32,
+    cpus_to_go: HashMap<PID, i32>,
+    ios_to_go: HashMap<PID, i32>,
     current_process: Option<PID>,
-    current_info: Option<RunInfo>,
 }
 
 impl Dispatcher {
     pub fn new() -> Self {
         Self {
-            cycles_to_go: 0,
+            cpus_to_go: HashMap::new(),
+            ios_to_go: HashMap::new(),
             current_process: None,
-            current_info: None,
         }
     }
     pub fn dispatch(&mut self, os: &mut OS) {
-        // add processes to ready and blocked queues
-        for proc in os.running_processes.values() {
-            if proc.state == State::Blocked && !os.blocked_queue.contains(&proc.pid) {
-                os.blocked_queue.push_back(proc.pid);
-            }
-        }
-
         // is the dispatcher currently executing a process right now?
         if let Some(pid) = self.current_process {
             self.exec(os, pid);
         } else {
-            // No process is currently being executed
-            // pop from blocked queue
-            if let Some(pid) = os.blocked_queue.pop_front() {
-                self.exec(os, pid);
-                return;
-            }
+            Self::get_next_pid_FIFO(os).map(|next_pid| {
+                // set currently executing PID
+                os.current_pid = next_pid;
+                self.current_process = Some(next_pid);
 
-            // not blocked, dispatch next process in FIFO order
-            if let Some(next_pid) = Self::get_next_pid_FIFO(os) {
                 self.exec(os, next_pid);
-            }
+            });
         }
+        // update IOs for all blocked processes
+        self.update_ios(os);
     }
 
     /** Execute a process */
     fn exec(&mut self, os: &mut OS, pid: PID) {
-        // set currently executing PID
-        os.current_pid = pid;
-        self.current_process = Some(pid);
-
         if let Some(proc) = os.running_processes.get_mut(&pid) {
-            let clock = os.master_clock;
-
-            // set start time if we haven't already started the process
+            // start the process, if we haven't already started
             if proc.start_time == 0 {
+                let clock = os.master_clock;
                 proc.start_time = clock;
-                println!("Started {} at clock time {}", proc.info.process_name, clock);
+                println!(
+                    "Started {} (PID # {}) at clock time {}",
+                    proc.info.process_name, pid, clock
+                );
             }
 
-            proc.state = State::Executing;
-
-            let info_vec = &mut proc.info.run_info;
-
-            // check if the dispatcher was previously executing a process, and use that runinfo
-            if let Some(info) = self.current_info.clone() {
-                self.update_cpu_ios(proc, &info);
-
-                // dirty, ugly hack because I can't figure out how the borrow checker works.
-                if info.IO_device_type != (IODeviceType::Unknown)
-                    && !os.blocked_queue.contains(&proc.pid)
-                {
-                    os.blocked_queue.push_back(proc.pid);
-                }
-            } else {
-                // need new run info, pop from runinfo vec.
-                if let Some(info) = &info_vec.pop() {
-                    // update cycles to go
-                    self.current_info = Some(info.clone());
-                    self.cycles_to_go = info.CPU_units;
-                    self.update_cpu_ios(proc, info);
-                    // dirty, ugly hack because I can't figure out how the borrow checker works.
-                    if info.IO_device_type != (IODeviceType::Unknown) {
-                        os.blocked_queue.push_back(proc.pid);
+            // check if the dispatcher was previously executing a process, and use that CPU info
+            match self.cpus_to_go.get(&pid) {
+                Some(_) => {
+                    if !os.blocked_queue.contains(&pid) {
+                        self.update_cpu(proc);
                     }
-                } else {
-                    // info is empty, process must have been completed!
-                    self.current_process = None;
-                    self.current_info = None;
-                    proc.state = State::Done;
-                    println!(
-                        "Finished process {} (PID # {}) at clock time {}",
-                        proc.info.process_name, pid, os.master_clock
-                    );
-                    os.remove_process(pid);
+                }
+                None => {
+                    let info_vec = &mut proc.info.run_info;
+                    // need new run info, pop from runinfo vec.
+                    if let Some(info) = &info_vec.pop() {
+                        // update CPU cycles to go
+                        self.cpus_to_go.insert(pid, info.CPU_units);
+
+                        // update IO cycles to go
+                        if info.IO_units > 0 {
+                            println!(
+                                "Started IO for process {} (PID # {}) at clock time {}",
+                                proc.info.process_name, pid, os.master_clock
+                            );
+                            self.ios_to_go.insert(pid, info.IO_units);
+                        }
+                        self.update_cpu(proc);
+                    } else {
+                        // info is empty, process must have been completed!
+                        proc.state = State::Done;
+                        println!(
+                            "Finished process {} (PID # {}) at clock time {}",
+                            proc.info.process_name, pid, os.master_clock
+                        );
+                        self.current_process = None;
+                        os.remove_process(pid);
+                    }
                 }
             }
         }
     }
-    /** Update CPU or IO units */
-    fn update_cpu_ios(&mut self, proc: &mut ProcessControlBlock, info: &RunInfo) {
-        // if IO dev is not unknown, IO must happen in this record
-        if info.IO_device_type != (IODeviceType::Unknown) {
+
+    /** update IO cycles completed */
+    fn update_ios(&mut self, os: &mut OS) {
+        // create list of PIDS we must remove
+        let mut to_remove: Vec<PID> = Vec::new();
+        for (pid, togo) in self.ios_to_go.iter_mut() {
+            let proc = os.running_processes.get_mut(pid).unwrap();
             proc.state = State::Blocked;
-            proc.total_ios += 1;
+            if !os.blocked_queue.contains(&proc.pid) {
+                os.blocked_queue.push_back(proc.pid);
+            }
+
+            if *togo > 0 {
+                proc.total_ios += 1;
+                *togo -= 1;
+            } else {
+                println!(
+                    "IO completed for process {} (PID {}) at clock time {}",
+                    proc.info.process_name, proc.pid, os.master_clock
+                );
+                os.blocked_queue.pop_front();
+                to_remove.push(proc.pid);
+            }
         }
-        // update process total CPU time
-        if self.cycles_to_go > 0 {
+
+        // removed mrked IOs
+        for pid in to_remove {
+            self.ios_to_go.remove(&pid);
+        }
+    }
+
+    /** Update CPU cycles completed */
+    fn update_cpu(&mut self, proc: &mut ProcessControlBlock) {
+        let togo = self.cpus_to_go.get_mut(&proc.pid).unwrap();
+        // update total CPU time for the currently running process
+        if *togo > 0 {
             // info block has more cycles to go
+            proc.state = State::Executing;
             proc.total_cpu += 1;
-            self.cycles_to_go -= 1;
+            *togo -= 1;
         } else {
-            // done executing this info block
+            // done executing CPU for this info block
             self.current_process = None;
-            self.current_info = None;
+            self.cpus_to_go.remove(&proc.pid);
             proc.state = State::Ready;
         }
     }
 
-    /** get next PID required to execute */
+    /** get next PID required to execute
+    @returns
+    Some(PID) for the next PID in the ready queue
+    None if nothing is in the ready queue*/
     fn get_next_pid_FIFO(os: &mut OS) -> Option<PID> {
-        let fifo = &mut os.fifo_schedule;
-        match fifo.pop_front() {
-            Some(T) => {
-                // add PID back to queue
-                fifo.push_back(T);
-                Some(T)
-            }
-            None => None,
-        }
+        let fifo = &mut os.ready_queue;
+        fifo.pop_front().and_then(|T| {
+            fifo.push_back(T);
+            Some(T)
+        })
     }
 }
