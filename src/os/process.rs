@@ -1,3 +1,4 @@
+use crate::os::memory::MemoryRange;
 use crate::records::ProcessData;
 use std::cmp::Ordering;
 use std::fmt;
@@ -9,7 +10,7 @@ pub struct ProcessControlBlock {
     pub info: ProcessData, // process info,
     pub pid: PID,
     pub clk: i32, // current CPU clock
-    pub state: State,
+    pub state: ProcessState,
     pub total_cpu: i32, // total CPU cycles completed
     pub total_ios: i32, // total IO cycles completed
     pub start_time: i32,
@@ -46,20 +47,8 @@ impl fmt::Display for ProcessControlBlock {
     }
 }
 
-#[derive(Clone)]
-pub struct MemoryRange(pub i32, pub i32); // initial and final blocks of memory this process takes up
-
-impl fmt::Display for MemoryRange {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut result = String::new();
-        for i in self.0..=self.1 {
-            result.push_str(&(i.to_string() + " "));
-        }
-        write!(f, "{}", result)
-    }
-}
 #[derive(Debug, Eq, PartialEq)]
-pub enum State {
+pub enum ProcessState {
     Allocating,
     Ready,
     Executing,

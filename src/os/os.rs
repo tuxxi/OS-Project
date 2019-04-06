@@ -1,6 +1,7 @@
 use crate::os::allocator::Allocator;
 use crate::os::dispatcher::Dispatcher;
-use crate::os::structures::{MemoryRange, ProcessControlBlock, PID};
+use crate::os::memory::MemoryRange;
+use crate::os::process::{ProcessControlBlock, PID};
 use crate::records::{OSParams, ProcessData};
 
 use itertools::sorted;

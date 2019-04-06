@@ -1,4 +1,5 @@
-pub mod allocator;
-pub mod dispatcher;
+mod allocator;
+mod dispatcher;
+mod memory;
 pub mod os;
-pub mod structures;
+mod process;

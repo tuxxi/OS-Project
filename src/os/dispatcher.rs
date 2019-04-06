@@ -1,5 +1,5 @@
 use crate::os::os::OS;
-use crate::os::structures::{ProcessControlBlock, State, PID};
+use crate::os::process::{ProcessControlBlock, ProcessState, PID};
 use crate::records::IODeviceType;
 use std::collections::{HashMap, VecDeque};
 
@@ -24,6 +24,7 @@ pub struct Dispatcher {
     ios_to_go: HashMap<PID, (IODeviceType, i32)>,
     current_process: Option<PID>,
     event_queue: VecDeque<Event>,
+    io_devices: (Option<IODeviceType>, Option<IODeviceType>),
 }
 
 impl Dispatcher {
@@ -33,6 +34,7 @@ impl Dispatcher {
             ios_to_go: HashMap::new(),
             current_process: None,
             event_queue: VecDeque::new(),
+            io_devices: (None, None)
         }
     }
     pub fn dispatch(&mut self, os: &mut OS) {
@@ -41,10 +43,6 @@ impl Dispatcher {
             self.exec(os, pid);
         } else {
             Self::get_next_pid_FIFO(os).map(|next_pid| {
-                // set currently executing PID
-                os.current_pid = next_pid;
-                self.current_process = Some(next_pid);
-
                 self.exec(os, next_pid);
             });
         }
@@ -81,7 +79,12 @@ impl Dispatcher {
                     // need new run info, pop from runinfo vec.
                     if let Some(info) = &info_vec.pop() {
                         // update CPU cycles to go
+
                         self.cpus_to_go.insert(pid, info.CPU_units);
+                        // set currently executing
+                        os.current_pid = pid;
+                        self.current_process = Some(pid);
+
 
                         // update IO cycles to go
                         if info.IO_units > 0 {
@@ -105,10 +108,17 @@ impl Dispatcher {
     /** update IO cycles completed */
     fn update_ios(&mut self, os: &mut OS) {
         for (pid, togo) in self.ios_to_go.iter_mut() {
-            let proc = os.running_processes.get_mut(pid).unwrap();
-            proc.state = State::Blocked;
-            if !os.blocked_queue.contains(&proc.pid) {
-                os.blocked_queue.push_back(proc.pid);
+            let proc = os
+                .running_processes
+                .get_mut(pid)
+                .expect("Could not find process");
+
+            if let Some(curr_proc) = self.current_process {
+                if !os.blocked_queue.contains(&proc.pid) && proc.pid == curr_proc {
+                    os.blocked_queue.push_back(proc.pid);
+                    proc.state = ProcessState::Blocked;
+                    println!("blocked queue: {:?} at time: {}", os.blocked_queue, os.master_clock);
+                }
             }
 
             if togo.1 > 0 {
@@ -130,7 +140,7 @@ impl Dispatcher {
         // update total CPU time for the currently running process
         if *togo > 0 {
             // info block has more cycles to go
-            proc.state = State::Executing;
+            proc.state = ProcessState::Executing;
             proc.total_cpu += 1;
             *togo -= 1;
         } else {
@@ -175,14 +185,14 @@ impl Dispatcher {
                         );
                         self.current_process = None;
                         self.cpus_to_go.remove(&event.pid);
-                        proc.state = State::Ready;
+                        proc.state = ProcessState::Ready;
                     }
                     EventType::Finished => {
                         println!(
                             "Process {} (PID # {}) completed at clock time {}",
                             proc.info.process_name, event.pid, event.time
                         );
-                        proc.state = State::Done;
+                        proc.state = ProcessState::Done;
                         self.current_process = None;
                         os.remove_process(event.pid);
                     }

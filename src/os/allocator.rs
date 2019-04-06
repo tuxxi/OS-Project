@@ -1,6 +1,7 @@
 use self::AllocResult::*;
+use crate::os::memory::MemoryRange;
 use crate::os::os::OS;
-use crate::os::structures::{MemoryRange, ProcessControlBlock, State};
+use crate::os::process::{ProcessControlBlock, ProcessState};
 use crate::records::ProcessData;
 
 use std::collections::HashSet;
@@ -76,7 +77,7 @@ impl Allocator {
                 info: info.clone(), //grr borrow checker :^(
                 pid,
                 clk: os.master_clock,
-                state: State::Allocating,
+                state: ProcessState::Allocating,
                 total_cpu: 0,
                 total_ios: 0,
                 start_time: 0,
